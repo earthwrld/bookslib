@@ -1,4 +1,4 @@
-FROM golang:1.22-alpine AS base
+FROM golang:1.26-alpine AS base
 WORKDIR /app
 COPY . .
 RUN go mod tidy
@@ -9,10 +9,8 @@ RUN go test -v ./...
 FROM base AS build
 RUN CGO_ENABLED=0 GOOS=linux go build -o main .
 
-FROM alpine:latest AS production
-RUN addgroup -g 1001 -S appgroup && adduser -S appuser -u 1001 -G appgroup
+FROM scratch AS production
 WORKDIR /app
-COPY --from=build --chown=appuser:appgroup /app/main .
-USER appuser
+COPY --from=build /app/main .
 EXPOSE 8081
 CMD ["./main"]

@@ -20,6 +20,7 @@ services:
       retries: 5
 
   frontend:
+    image: bookslib-frontend
     build: ./frontend
     env_file:
       - ./frontend/.env
@@ -36,6 +37,7 @@ services:
       - bookslib-net
 
   auth-service:
+    image: bookslib-auth-service
     build: ./auth-service
     ports:
       - "8081:8081"
@@ -48,6 +50,7 @@ services:
       - bookslib-net
 
   books-service:
+    image: bookslib-books-service
     build: ./books-service
     ports:
       - "8082:8080"
@@ -60,6 +63,7 @@ services:
       - bookslib-net
 
   reviews-service:
+    image: bookslib-reviews-service
     build: ./reviews-service
     ports:
       - "8083:8000"

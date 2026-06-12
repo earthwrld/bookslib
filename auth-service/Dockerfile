@@ -10,7 +10,9 @@ FROM base AS build
 RUN CGO_ENABLED=0 GOOS=linux go build -o main .
 
 FROM alpine:latest AS production
+RUN addgroup -g 1001 -S appgroup && adduser -S appuser -u 1001 -G appgroup
 WORKDIR /app
-COPY --from=build /app/main .
+COPY --from=build --chown=appuser:appgroup /app/main .
+USER appuser
 EXPOSE 8081
 CMD ["./main"]

@@ -10,7 +10,7 @@ RUN npm run test
 FROM base AS build
 RUN npm run build
 
-FROM nginx:alpine AS production
-COPY --from=build /app/dist /usr/share/nginx/html
-EXPOSE 80
+FROM nginxinc/nginx-unprivileged:alpine AS production
+COPY --from=build --chown=101:101 /app/dist /usr/share/nginx/html
+EXPOSE 8080
 CMD ["nginx", "-g", "daemon off;"]

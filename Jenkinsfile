@@ -2,9 +2,7 @@ pipeline {
     agent any
 
     environment {
-        // Asumsi nama repository GitHub (contoh: username/bookslib)
-        // Pastikan Anda mengubahnya nanti!
-        REPO_NAME = "YOUR_GITHUB_USERNAME/bookslib"
+        REPO_NAME = "earthwrld/bookslib"
     }
 
     stages {

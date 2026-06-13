@@ -136,6 +136,31 @@ pipeline {
             steps {
                 echo 'Deploying application using Docker Compose...'
                 sh 'docker compose up -d'
+                
+                echo 'Menunggu layanan hidup sepenuhnya...'
+                sleep 15
+            }
+        }
+
+        stage('Security Gate 4: DAST (OWASP ZAP)') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo 'Running Dynamic Application Security Testing menggunakan OWASP ZAP...'
+                sh '''
+                # Beri izin tulis agar ZAP bisa menyimpan hasil report HTML ke direktori kerja Jenkins
+                chmod 777 .
+                
+                # Jalankan ZAP Baseline Scan melawan frontend (localhost:3000)
+                # Opsi -I berarti mengabaikan warning agar pipeline tidak gagal merah, kita hanya ingin reportnya
+                docker run --rm --network host -v "\$PWD":/zap/wrk/:rw ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://localhost:3000 -r zap-report.html -I || true
+                '''
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'zap-report.html', allowEmptyArchive: true, fingerprint: true
+                }
             }
         }
     }

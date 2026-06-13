@@ -9,5 +9,6 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o main .
 FROM scratch AS production
 WORKDIR /app
 COPY --from=build /app/main .
+USER 10001:10001
 EXPOSE 8081
 CMD ["./main"]

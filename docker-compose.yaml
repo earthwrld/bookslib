@@ -18,6 +18,11 @@ services:
       interval: 3s
       timeout: 3s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
 
   frontend:
     image: bookslib-frontend
@@ -35,6 +40,11 @@ services:
         condition: service_started
     networks:
       - bookslib-net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
 
   auth-service:
     image: bookslib-auth-service
@@ -48,6 +58,11 @@ services:
         condition: service_healthy
     networks:
       - bookslib-net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
 
   books-service:
     image: bookslib-books-service
@@ -61,6 +76,11 @@ services:
         condition: service_healthy
     networks:
       - bookslib-net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
 
   reviews-service:
     image: bookslib-reviews-service
@@ -77,6 +97,11 @@ services:
         condition: service_healthy
     networks:
       - bookslib-net
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 128M
 
 networks:
   bookslib-net:

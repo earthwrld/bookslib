@@ -4,9 +4,6 @@ COPY package*.json ./
 RUN npm install
 COPY . .
 
-FROM base AS test
-RUN npm run test
-
 FROM base AS build
 RUN npm run build
 

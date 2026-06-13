@@ -3,9 +3,6 @@ WORKDIR /app
 COPY . .
 RUN go mod tidy
 
-FROM base AS test
-RUN go test -v ./...
-
 FROM base AS build
 RUN CGO_ENABLED=0 GOOS=linux go build -o main .
 

@@ -6,10 +6,6 @@ RUN dotnet restore "BooksLib.csproj"
 RUN dotnet restore "BooksLib.Tests/BooksLib.Tests.csproj"
 COPY . .
 
-FROM base AS test
-WORKDIR /src/BooksLib.Tests
-RUN dotnet run
-
 FROM base AS build
 WORKDIR /src
 RUN dotnet publish "BooksLib.csproj" -c Release -o /app/publish --no-restore

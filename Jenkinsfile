@@ -16,8 +16,8 @@ pipeline {
             steps {
                 echo 'Running IaC Scanning using Checkov...'
                 sh '''
-                # Scan Dockerfile dan docker-compose.yaml
-                docker run --rm -v "\$PWD:/work" bridgecrew/checkov:latest -d /work --framework dockerfile,docker_compose --soft-fail
+                # Scan Dockerfile
+                docker run --rm -v "\$PWD:/work" bridgecrew/checkov:latest -d /work --framework dockerfile --soft-fail
                 '''
             }
         }

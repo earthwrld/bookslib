@@ -12,6 +12,16 @@ pipeline {
             }
         }
 
+        stage('Security Gate 0: IaC Scanning') {
+            steps {
+                echo 'Running IaC Scanning using Checkov...'
+                sh '''
+                # Scan Dockerfile dan docker-compose.yaml
+                docker run --rm -v "\$PWD:/work" bridgecrew/checkov:latest -d /work --framework dockerfile,docker_compose --soft-fail
+                '''
+            }
+        }
+
         stage('Security Gate 1: Secret Scanning') {
             steps {
                 echo 'Running Secret Scanning using TruffleHog...'
@@ -57,28 +67,64 @@ pipeline {
             }
         }
 
-        stage('Security Gate 3: Container Scanning') {
+        stage('Security Gate 3: Container Scanning (Thresholds)') {
             steps {
                 echo 'Running Container Scanning using Trivy...'
+                
+                // 1. Log MEDIUM & LOW (Tidak fail, hanya log)
                 sh '''
-                # Scan Auth Service
-                docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --exit-code 1 --severity CRITICAL bookslib-auth-service
-                # Scan Books Service
-                docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --exit-code 1 --severity CRITICAL bookslib-books-service
-                # Scan Reviews Service
-                docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --exit-code 1 --severity CRITICAL bookslib-reviews-service
-                # Scan Frontend
-                docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --exit-code 1 --severity CRITICAL bookslib-frontend
+                echo "=== Scanning for LOW & MEDIUM Vulnerabilities ==="
+                for service in auth-service books-service reviews-service frontend; do
+                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --severity LOW,MEDIUM bookslib-\$service || true
+                done
+                '''
+                
+                // 2. Warning HIGH (Buat Issue tapi lanjut)
+                script {
+                    def services = ['auth-service', 'books-service', 'reviews-service', 'frontend']
+                    for (service in services) {
+                        def highScan = sh(script: "docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --severity HIGH bookslib-${service} | grep -E 'HIGH: [1-9]' || true", returnStdout: true).trim()
+                        if (highScan != "") {
+                            createGitHubIssue(
+                                "Security Warning: HIGH Vulnerability in ${service}", 
+                                "Trivy mendeteksi celah keamanan HIGH pada Docker image bookslib-${service}. Harap diperiksa namun pipeline akan tetap dilanjutkan untuk saat ini."
+                            )
+                        }
+                    }
+                }
+                
+                // 3. Block CRITICAL (Fail pipeline)
+                sh '''
+                echo "=== Scanning for CRITICAL Vulnerabilities (BLOCKING) ==="
+                for service in auth-service books-service reviews-service frontend; do
+                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --exit-code 1 --severity CRITICAL bookslib-\$service
+                done
                 '''
             }
             post {
                 failure {
                     script {
                         createGitHubIssue(
-                            "Security Alert: Container Vulnerability Found", 
-                            "Trivy mendeteksi celah keamanan CRITICAL pada Docker image. Tolong perbarui base image atau library."
+                            "Security Alert: CRITICAL Container Vulnerability", 
+                            "Trivy mendeteksi celah keamanan CRITICAL pada Docker image. Pipeline dihentikan. Tolong perbarui base image atau library."
                         )
                     }
+                }
+            }
+        }
+
+        stage('Generate SBOM (Supply Chain Security)') {
+            steps {
+                echo 'Generating SBOM menggunakan Trivy...'
+                sh '''
+                for service in auth-service books-service reviews-service frontend; do
+                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "\$PWD:/workspace" aquasec/trivy image --format cyclonedx --output /workspace/sbom-\$service.json bookslib-\$service
+                done
+                '''
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'sbom-*.json', fingerprint: true
                 }
             }
         }

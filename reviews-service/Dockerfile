@@ -1,4 +1,4 @@
-FROM python:3.10-slim AS base
+FROM python:3.10-alpine AS base
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
@@ -8,7 +8,7 @@ FROM base AS test
 RUN python manage.py test
 
 FROM base AS production
-RUN addgroup --system appgroup && adduser --system --group appuser \
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup \
     && chown -R appuser:appgroup /app
 USER appuser
 EXPOSE 8000

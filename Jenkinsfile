@@ -62,13 +62,13 @@ pipeline {
                 echo 'Running Container Scanning using Trivy...'
                 sh '''
                 # Scan Auth Service
-                docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --severity CRITICAL bookslib-auth-service
+                docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --exit-code 1 --severity CRITICAL bookslib-auth-service
                 # Scan Books Service
-                docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --severity CRITICAL bookslib-books-service
+                docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --exit-code 1 --severity CRITICAL bookslib-books-service
                 # Scan Reviews Service
-                docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --severity CRITICAL bookslib-reviews-service
+                docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --exit-code 1 --severity CRITICAL bookslib-reviews-service
                 # Scan Frontend
-                docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --severity CRITICAL bookslib-frontend
+                docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --exit-code 1 --severity CRITICAL bookslib-frontend
                 '''
             }
             post {

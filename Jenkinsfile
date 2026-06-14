@@ -75,7 +75,7 @@ pipeline {
                 sh '''
                 echo "=== Scanning for LOW & MEDIUM Vulnerabilities ==="
                 for service in auth-service books-service reviews-service frontend; do
-                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --severity LOW,MEDIUM bookslib-\$service || true
+                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --severity LOW,MEDIUM bookslib-${service} || true
                 done
                 '''
                 
@@ -97,7 +97,7 @@ pipeline {
                 sh '''
                 echo "=== Scanning for CRITICAL Vulnerabilities (BLOCKING) ==="
                 for service in auth-service books-service reviews-service frontend; do
-                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --exit-code 1 --severity CRITICAL bookslib-\$service
+                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --exit-code 1 --severity CRITICAL bookslib-${service}
                 done
                 '''
             }
@@ -119,7 +119,7 @@ pipeline {
                 sh '''
                 chmod 777 .
                 for service in auth-service books-service reviews-service frontend; do
-                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "\$(pwd):/workspace" aquasec/trivy image --format cyclonedx --output /workspace/sbom-\${service}.json bookslib-\${service}
+                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$(pwd):/workspace" aquasec/trivy image --format cyclonedx --output /workspace/sbom-${service}.json bookslib-${service}
                 done
                 '''
             }

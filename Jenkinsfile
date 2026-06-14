@@ -17,7 +17,7 @@ pipeline {
                 echo 'Running IaC Scanning using Checkov...'
                 sh '''
                 # Scan Dockerfile
-                docker run --rm -v "\$PWD:/work" bridgecrew/checkov:latest -d /work --framework dockerfile --soft-fail
+                docker run --rm -v "$(pwd):/work" bridgecrew/checkov:latest -d /work --framework dockerfile --soft-fail
                 '''
             }
         }
@@ -26,7 +26,7 @@ pipeline {
             steps {
                 echo 'Running Secret Scanning using TruffleHog...'
                 sh '''
-                docker run --rm -v "\$PWD:/pwd" trufflesecurity/trufflehog:latest filesystem /pwd --fail
+                docker run --rm -v "$(pwd):/pwd" trufflesecurity/trufflehog:latest filesystem /pwd --fail
                 '''
             }
             post {
@@ -45,7 +45,7 @@ pipeline {
             steps {
                 echo 'Running SAST using Semgrep...'
                 sh '''
-                docker run --rm -v "\$PWD:/src" returntocorp/semgrep:latest semgrep scan --config p/ci --error /src
+                docker run --rm -v "$(pwd):/src" returntocorp/semgrep:latest semgrep scan --config p/ci --error /src
                 '''
             }
             post {
@@ -117,8 +117,9 @@ pipeline {
             steps {
                 echo 'Generating SBOM menggunakan Trivy...'
                 sh '''
+                chmod 777 .
                 for service in auth-service books-service reviews-service frontend; do
-                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "\$PWD:/workspace" aquasec/trivy image --format cyclonedx --output /workspace/sbom-\$service.json bookslib-\$service
+                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "\$(pwd):/workspace" aquasec/trivy image --format cyclonedx --output /workspace/sbom-\${service}.json bookslib-\${service}
                 done
                 '''
             }
@@ -154,7 +155,7 @@ pipeline {
                 
                 # Jalankan ZAP Baseline Scan melawan frontend (localhost:3000)
                 # Opsi -I berarti mengabaikan warning agar pipeline tidak gagal merah, kita hanya ingin reportnya
-                docker run --rm --network host -v "\$PWD":/zap/wrk/:rw ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://localhost:3000 -r zap-report.html -I || true
+                docker run --rm --network host -v "$(pwd)":/zap/wrk/:rw ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://localhost:3000 -r zap-report.html -I || true
                 '''
             }
             post {

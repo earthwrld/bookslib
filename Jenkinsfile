@@ -9,6 +9,10 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
+                script {
+                    // Kalkulasi path workspace di host OS untuk Docker-in-Docker volume mount
+                    env.HOST_WORKSPACE = pwd().replace('/var/jenkins_home', '/home/boemi/Projects/satnusachall/bookslib/jenkins_home')
+                }
             }
         }
 
@@ -17,7 +21,7 @@ pipeline {
                 echo 'Running IaC Scanning using Checkov...'
                 sh '''
                 # Scan Dockerfile
-                docker run --rm -v "$(pwd):/work" bridgecrew/checkov:latest -d /work --framework dockerfile --soft-fail
+                docker run --rm -v "${HOST_WORKSPACE}:/work" bridgecrew/checkov:latest -d /work --framework dockerfile --soft-fail
                 '''
             }
         }
@@ -26,7 +30,7 @@ pipeline {
             steps {
                 echo 'Running Secret Scanning using TruffleHog...'
                 sh '''
-                docker run --rm -v "$(pwd):/pwd" trufflesecurity/trufflehog:latest filesystem /pwd --fail
+                docker run --rm -v "${HOST_WORKSPACE}:/pwd" trufflesecurity/trufflehog:latest filesystem /pwd --fail
                 '''
             }
             post {
@@ -45,7 +49,7 @@ pipeline {
             steps {
                 echo 'Running SAST using Semgrep...'
                 sh '''
-                docker run --rm -v "$(pwd):/src" returntocorp/semgrep:latest semgrep scan --config p/ci --error /src
+                docker run --rm -v "${HOST_WORKSPACE}:/src" returntocorp/semgrep:latest semgrep scan --config p/ci --error /src
                 '''
             }
             post {
@@ -117,9 +121,8 @@ pipeline {
             steps {
                 echo 'Generating SBOM menggunakan Trivy...'
                 sh '''
-                chmod 777 .
                 for service in auth-service books-service reviews-service frontend; do
-                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$(pwd):/workspace" aquasec/trivy image --format cyclonedx --output /workspace/sbom-${service}.json bookslib-${service}
+                    docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image --format cyclonedx bookslib-${service} > sbom-${service}.json
                 done
                 '''
             }
@@ -154,8 +157,10 @@ pipeline {
                 chmod 777 .
                 
                 # Jalankan ZAP Baseline Scan melawan frontend (localhost:3000)
-                # Opsi -I berarti mengabaikan warning agar pipeline tidak gagal merah, kita hanya ingin reportnya
-                docker run --rm --network host -v "$(pwd)":/zap/wrk/:rw ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://localhost:3000 -r zap-report.html -I || true
+                # Gunakan docker cp karena bind mount tidak berfungsi di Docker-in-Docker
+                docker run --name zap-temp --network host ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://localhost:3000 -r zap-report.html -I || true
+                docker cp zap-temp:/zap/wrk/zap-report.html . || true
+                docker rm zap-temp || true
                 '''
             }
             post {

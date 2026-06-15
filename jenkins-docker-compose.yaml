@@ -3,7 +3,7 @@ services:
   jenkins:
     image: jenkins/jenkins:lts
     container_name: jenkins_local
-    privileged: true
+
     user: root # Supaya bisa jalankan docker di dalam container
     ports:
       - 8080:8080

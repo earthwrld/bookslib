@@ -6,9 +6,8 @@ pipeline {
     }
 
     stages {
-        stage('Checkout') {
+        stage('Setup Environment') {
             steps {
-                checkout scm
                 script {
                     // Kalkulasi path workspace di host OS untuk Docker-in-Docker volume mount
                     env.HOST_WORKSPACE = pwd().replace('/var/jenkins_home', '/home/boemi/Projects/satnusachall/bookslib/jenkins_home')

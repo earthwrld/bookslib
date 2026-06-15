@@ -157,10 +157,8 @@ pipeline {
                 chmod 777 .
                 
                 # Jalankan ZAP Baseline Scan melawan frontend (localhost:3000)
-                # Gunakan docker cp karena bind mount tidak berfungsi di Docker-in-Docker
-                docker run --name zap-temp --network host ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://localhost:3000 -r zap-report.html -I || true
-                docker cp zap-temp:/zap/wrk/zap-report.html . || true
-                docker rm zap-temp || true
+                # Gunakan volume mount dengan HOST_WORKSPACE yang sudah di-resolve
+                docker run --rm --network host -v "${HOST_WORKSPACE}:/zap/wrk/:rw" ghcr.io/zaproxy/zaproxy:stable zap-baseline.py -t http://localhost:3000 -r zap-report.html -I || true
                 '''
             }
             post {

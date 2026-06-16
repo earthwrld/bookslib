@@ -1,65 +1,106 @@
-# BukuLib - DevSecOps Internship Test Submission
+# BooksLib - DevSecOps Pipeline (Track A)
 
-Halo! Ini adalah dokumentasi hasil pengerjaan technical test aku untuk posisi DevSecOps Internship (Track A). Di repo ini, aku udah nambahin pipeline CI/CD pakai Jenkins buat mastiin aplikasinya aman sebelum bener-bener di-deploy ke production.
-
-## 1. Arsitektur & Alur Kerja (Workflow)
-Aku nerapin konsep *Shift-Left Security* di pipeline Jenkins ini. Intinya, setiap ada kode baru yang di-push, Jenkins bakal jalanin serangkaian satpam (Security Gates) secara otomatis:
-
-1. **Setup & Checkout:** Ambil kode terbaru dari repository.
-2. **Gate 0 - IaC Scanning (Checkov):** Ngecek konfigurasi `Dockerfile` dan `docker-compose` biar nggak ada *misconfig* infrastruktur (misal jalanin container pake akses root).
-3. **Gate 1 - Secret Scanning (Trufflehog):** Sweeping kode barangkali ada API key atau password database yang nggak sengaja ke-commit (hardcoded).
-4. **Gate 2 - SAST (Semgrep):** Ngecek *source code* mentah buat nyari celah logika kaya SQL Injection atau XSS tanpa harus jalanin aplikasinya.
-5. **Build Image:** Nge-build Docker image buat persiapan tahap selanjutnya.
-6. **Gate 3 - Container Scanning (Trivy):** Nge-scan image Docker yang barusan dibikin buat ngecek *vulnerabilities* (CVE) di level OS atau library-nya. Kalau nemu celah level CRITICAL, pipeline langsung gagal (blocking).
-7. **Generate SBOM:** Bikin *Software Bill of Materials* (kayak label komposisi bahan aplikasi) pake format CycloneDX buat kepatuhan supply chain.
-8. **Deploy to Production:** Kalau semua lolos dan ini adalah branch `main`, aplikasi bakal di-deploy pakai `docker compose`. Kalau branch `develop`, pipeline berhenti sebelum deploy (jadi cuma buat ngetest keamanannya aja).
-9. **Gate 4 - DAST (OWASP ZAP):** Nyerang aplikasi yang udah jalan dari luar (simulasi hacker) buat ngecek celah misal header HTTP yang kurang aman. Laporannya disimpen di Jenkins.
-
-*Catatan:* Kalau Gate 1, 2, atau 3 gagal, Jenkins udah disetting buat otomatis manggil GitHub API buat bikin **Issue** baru di repo ini, ngasih tau tim ada celah yang harus diperbaiki.
-
-## 2. Langkah-langkah Mereproduksi Sistem
-Kalau mau nyoba jalanin di lokal, ikuti langkah ini ya:
-
-**Prasyarat:**
-- Udah install Docker & Docker Compose.
-- Udah sedia Jenkins yang jalan di lokal. Di sini aku pakai Jenkins versi docker dengan binding `docker.sock` supaya bisa manfaatin Docker-in-Docker (DooD).
-
-**Cara Deploy:**
-1. Clone repository ini:
-   ```bash
-   git clone https://github.com/[username-github-kamu]/bookslib.git
-   cd bookslib
-   ```
-2. Setup Jenkins:
-   - Jalankan Jenkins container yang udah disediain di file `jenkins-docker-compose.yaml`:
-     ```bash
-     docker compose -f jenkins-docker-compose.yaml up -d
-     ```
-   - Masuk ke Jenkins UI (localhost:8080), setup awal dan install plugin standar.
-   - Bikin kredensial baru (tipe Secret text) dengan ID `github-token` dan isi dengan GitHub Personal Access Token kamu. Ini wajib biar Jenkins bisa otomatis bikin Issue di GitHub kalau nemu bug.
-3. Bikin Job Pipeline di Jenkins:
-   - Bikin job baru, pilih tipe "Pipeline".
-   - Di bagian Pipeline script, pilih "Pipeline script from SCM".
-   - Masukin URL repo ini dan set branch ke `main` atau `develop`.
-   - Script path isi dengan `Jenkinsfile`.
-4. Save, lalu klik **Build Now**. Jenkins bakal otomatis ngejalanin semua tahap security test dan langsung nge-deploy aplikasinya (kalau branch `main`).
-5. Selesai! Cek aplikasi jalan di `http://localhost:3000`. Laporan ZAP (HTML) dan SBOM (JSON) bisa didownload langsung dari halaman artifact Jenkins.
-
-## 3. Trade-off & Alasan Pemilihan Tools
-- **Jenkins + Docker-in-Docker (DooD):** Buat jalanin *security scanning* (Trivy, Semgrep, dll), aku pakai docker container yang di-spin-up oleh Jenkins melalui `/var/run/docker.sock`. Trade-off-nya ini sebenernya kurang *secure* buat production karena Jenkins dapet akses root ke host Docker, tapi ini cara paling masuk akal, fleksibel, dan ringan buat ngerjain test ini di lokal tanpa harus nge-setup Kubernetes atau agent server terpisah.
-- **Trufflehog & Semgrep:** Aku milih dua kombinasi ini buat Secret Scan & SAST karena performanya cepet banget, gampang dipanggil lewat CLI docker, dan lumayan akurat buat nemuin celah umum bahasa pemrograman modern.
-- **Trivy:** Aku pakai buat Container Scanning sekaligus bikin SBOM karena praktis *all-in-one*, ringan, cepat, dan format SBOM-nya udah mengikuti standar industri (CycloneDX).
-- **Git Flow:** Pipeline sengaja diset biar branch `develop` cuma ngetest keamanan tanpa lanjut deploy. Trade-off-nya developer nggak dapet *preview link*, tapi ngebantu banget mencegah celah masuk ke `main` sejak awal.
-
-## 4. Kendala & Improvement Kedepannya
-Jujur, proses setupnya lumayan menantang dan ada beberapa kendala teknis yang sempet bikin stuck:
-- **Konflik Volume Docker-in-Docker:** Pas mau nge-generate report ZAP dan Semgrep di dalam Jenkins, file laporannya sempet gagal kesimpen karena path direktori di Host OS dan di dalam container Jenkins itu beda. Aku ngakalin ini dengan nyari path asli di host (`env.HOST_WORKSPACE`) pakai script Groovy, terus path itu yang dipassing ke *volume mount* Dockernya. 
-- **Semgrep nge-scan artifact sisa (False Positive):** Semgrep sempet ngasih status FAILED karena dia ngebaca file `zap-report.html` dari sisa *build* hari sebelumnya. Solusinya simpel, aku buatin `.semgrepignore` biar artifact sisa nggak ikut di-scan lagi.
-
-**Kalau ada waktu lebih banyak, ini yang pengen aku perbaiki:**
-1. Mindahin sistem deployment pakai **Kubernetes (K3s)** biar bener-bener bisa nerapin *Zero-Downtime Deployment* (misal pakai *Rolling Update*). Pakai docker-compose kaya sekarang emang gampang banget, tapi selalu ada jeda *downtime* sedetik/dua detik pas container direstart ulang.
-2. Integrasi **Sonarqube** buat inspeksi *Code Quality* secara menyeluruh, jadi bukan sekadar ngecek celah bahaya, tapi juga ngingetin kalau ada kode yang berantakan atau *code smell*.
-3. Misahin Jenkins agent dari Jenkins controller pakai node yang beda, biar arsitekturnya lebih aman dari potensi *privilege escalation* Docker socketnya.
+Ini dokumentasi pengerjaan technical test DevSecOps Internship 2026. Repo ini adalah fork dari [bookslib](https://github.com/sncyber-ops/bookslib.git) yang sudah saya tambahkan pipeline Jenkins dengan beberapa security gates.
 
 ---
-Terima kasih banyak udah ngeluangin waktu buat review hasil kerjaku!
+
+## 1. Arsitektur & Alur Kerja
+
+Konsep yang saya terapkan adalah *Shift-Left Security* — keamanan dicek sedini mungkin sebelum kode masuk ke production. Setiap ada push ke branch manapun, Jenkins langsung menjalankan serangkaian security check secara berurutan:
+
+```
+Push ke GitHub
+      │
+      ▼
+┌─────────────────────────────────────────────┐
+│  Gate 0  │ IaC Scanning       │ Checkov      │  ← Cek Dockerfile & docker-compose
+│  Gate 1  │ Secret Scanning    │ Trufflehog   │  ← Cek hardcoded credentials
+│  Gate 2  │ SAST               │ Semgrep      │  ← Cek celah logika source code
+├──────────┤────────────────────┴──────────────┤
+│          │ Build Docker Images               │  ← Build image semua service
+├──────────┤───────────────────────────────────┤
+│  Gate 3  │ Container Scanning │ Trivy        │  ← Scan CVE di image (CRITICAL = fail)
+│          │ Generate SBOM      │ Trivy        │  ← Buat manifest komposisi software
+├──────────┤───────────────────────────────────┤
+│          │ Deploy (branch main saja)         │  ← docker compose up -d
+├──────────┤───────────────────────────────────┤
+│  Gate 4  │ DAST               │ OWASP ZAP    │  ← Simulasi serangan dari luar
+└──────────┴───────────────────────────────────┘
+```
+
+**Catatan:** Kalau Gate 1, 2, atau 3 gagal, Jenkins otomatis membuat GitHub Issue supaya ada jejak temuan keamanannya.
+
+Branch `develop` hanya menjalankan tahap scan (Gate 0–3). Deploy dan DAST hanya berjalan di branch `main`.
+
+---
+
+## 2. Cara Menjalankan
+
+**Prasyarat:**
+- Docker & Docker Compose sudah terinstall
+- Port 8080 (Jenkins) dan 3000 (aplikasi) tidak dipakai proses lain
+
+**Langkah-langkah:**
+
+1. Clone repo ini:
+   ```bash
+   git clone https://github.com/earthwrld/bookslib.git
+   cd bookslib
+   ```
+
+2. Jalankan Jenkins:
+   ```bash
+   docker compose -f jenkins-docker-compose.yaml up -d
+   ```
+   Buka `http://localhost:8080`, selesaikan setup awal Jenkins, dan install plugin yang direkomendasikan.
+
+3. Tambahkan kredensial GitHub:
+   - Masuk ke **Manage Jenkins → Credentials**
+   - Buat credential baru, tipe **Secret text**
+   - ID: `github-token`, isi dengan GitHub Personal Access Token Anda
+   - Ini wajib ada agar Jenkins bisa membuat Issue otomatis saat ada temuan
+
+4. Buat Pipeline Job:
+   - Buat job baru → tipe **Pipeline**
+   - Pipeline script from SCM → Git
+   - Repository URL: URL repo ini, branch: `main`
+   - Script path: `Jenkinsfile`
+
+5. Klik **Build Now**. Pipeline akan berjalan otomatis.
+
+Setelah selesai, aplikasi bisa diakses di `http://localhost:3000`. Laporan ZAP dan SBOM tersedia di tab **Artifacts** di halaman build Jenkins.
+
+---
+
+## 3. Alasan Pemilihan Tools
+
+| Tools | Alasan |
+|---|---|
+| **Jenkins** | Sesuai requirement. Self-hosted, kontrol penuh terhadap environment. |
+| **Docker-in-Docker (DooD)** | Cara paling praktis menjalankan scanner (Trivy, Semgrep, ZAP) di dalam Jenkins tanpa setup Kubernetes. Trade-off: Jenkins dapat akses ke Docker socket host, kurang ideal di production enterprise. |
+| **Checkov** | Bisa scan Dockerfile & docker-compose sekaligus dalam satu perintah, gratis, dan cukup akurat. |
+| **Trufflehog** | Spesialis deteksi credentials & secret, false positive-nya lebih rendah dibanding tools sejenis. |
+| **Semgrep** | Cepat, support banyak bahasa (Python, JS, Go), dan konfigurasi rulesnya fleksibel. |
+| **Trivy** | All-in-one: bisa scan CVE sekaligus generate SBOM format CycloneDX. Tidak perlu dua tools berbeda. |
+| **OWASP ZAP** | Standar industri untuk DAST, open source, cocok untuk baseline scan di environment lokal. |
+| **Git Flow (main/develop)** | Branch `develop` untuk development & testing, `main` untuk production. Deploy hanya dari `main` supaya kode yang masuk ke production sudah melewati review. |
+
+---
+
+## 4. Kendala & Rencana Improvement
+
+**Kendala yang ditemui:**
+
+- **Path volume Docker-in-Docker tidak match** — Saat Jenkins (yang berjalan di dalam container) mencoba mount volume ke tools seperti ZAP atau Semgrep, path yang digunakan adalah path di dalam container Jenkins, bukan path di host OS. Solusinya dengan meresolve path host secara manual via `env.HOST_WORKSPACE` di Groovy script, lalu path itu yang dipakai untuk volume mount.
+
+- **Semgrep false positive dari artifact sisa** — Semgrep sempat gagal karena ikut membaca file `zap-report.html` sisa build sebelumnya, dan menganggap link `http://localhost:3000` di dalamnya sebagai temuan keamanan. Solusinya dengan menambahkan `.semgrepignore` untuk mengecualikan file hasil report.
+
+**Kalau ada waktu lebih:**
+
+1. **Kubernetes (K3s) + Rolling Update** — Deployment pakai docker-compose masih ada downtime sebentar saat container restart. Migrasi ke K3s memungkinkan zero-downtime deployment yang diminta di nilai plus.
+2. **SonarQube** — Tambahkan code quality analysis di luar SAST murni, supaya pipeline juga bisa deteksi code smell dan technical debt.
+3. **Jenkins Agent terpisah** — Saat ini Jenkins controller dan agent jalan di node yang sama. Lebih baik dipisah supaya akses Docker socket tidak langsung di controller.
+
+---
+
+*Terima kasih sudah meluangkan waktu untuk mereview hasil pengerjaan ini.*
